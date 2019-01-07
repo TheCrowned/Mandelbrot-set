@@ -61,8 +61,6 @@ int main(int argc, char** argv) {
 	LR = { real(UR), imag(LL) };
 	UL = { real(LL), imag(UR) };
 
-	cout << LL << LR << UR << UL << step << max_iterations << endl;
-
 	//Memory init
 	int rows = abs(UL-UR)/step + 1, cols = (int)abs(UL-LR)/step + 1;
 	int* matrix = (int*) malloc(rows * cols * sizeof(int));
@@ -70,20 +68,21 @@ int main(int argc, char** argv) {
 	ofstream output;
 	output.open("output.dat");
 
-	complex<double> c = UL + complex<double> { -step, step };
-	while(imag(c) - step >= imag(LL)) {
-		c = { real(c), imag(c) - step };
-		
-		while(real(c) + step <= real(UR)) {
-			c = { real(c) + step, imag(c) };
-			int man_n = mandelbrot(c);
-			cout << c << " " << man_n << endl;
-			output << real(c) << " " << imag(c) << " " << man_n << "\n";
-		}
-		cout << endl;
+	complex<double> c = UL + complex<double> { 0, 0 };
+	while(imag(c) >= imag(LL)) {
 
-		c = { real(UL) - step, imag(c) };
+		while(real(c) <= real(UR)) {
+			int man_n = mandelbrot(c);
+			//cout << c << " " << man_n << endl;
+			output << real(c) << " " << imag(c) << " " << man_n << "\n";
+			c = { real(c) + step, imag(c) };
+		}
+		//cout << endl;
+
+		c = { real(UL), imag(c) - step };
 	}
+
+	output.close();
 }
 
 /*
