@@ -44,7 +44,12 @@ int mandelbrot(complex<double> c) {
 }
 
 /**
+ * Writes a "processed line" in output file.
+ * Note that a processed line could be made of several rows, depending on
+ * the value of riga[2].
  *
+ * @param	double* riga Processed line
+ * @return	void
  */ 
 void scrivi_riga_output(double* riga) {
 	int real_rows_per_task = riga[2] / x_size;
@@ -65,7 +70,7 @@ int main(int argc, char** argv) {
 
 	//Params handling
 	if(argc < 7) {
-		cout << "Usage: mandelbrot <max_iterations> <step_size> <lower_left_real> <lower_left_imaginary> <upper_right_real> <upper_right_imaginary>";
+		cout << "Usage: mandelbrot <max_iterations> <step_size> <lower_left_real> <lower_left_imaginary> <upper_right_real> <upper_right_imaginary> [<rows_per_task>]";
 		return 0;
 	}
 
@@ -80,6 +85,9 @@ int main(int argc, char** argv) {
 
 	LR = { real(UR), imag(LL) };
 	UL = { real(LL), imag(UR) };
+
+	if(argc == 8)
+		rows_per_task = atoi(argv[7]);
 
 	x_size = (abs(LL-LR)/step)+1, y_size = ((abs(LL-UL)/step)+1);
 	chrono::high_resolution_clock::time_point tstart, tend;
@@ -116,7 +124,7 @@ int main(int argc, char** argv) {
 		//Receive from workers and, for each result, send out a new task
 		while(imag(c_recv) >= imag(LL)) {
 			MPI_Recv(recv_buff, x_size*rows_per_task +2 +1, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &mpi_status); //cannot use non-blocking here, otherwise can't use mpi_status.MPI_SOURCE before scrivi_riga_output
-			//cout << "Received point " << recv_buff[0] << "," << recv_buff[1] << " from node " << mpi_status.MPI_SOURCE << ", buffer real size " << recv_buff[2] << endl;
+			cout << "Received point " << recv_buff[0] << "," << recv_buff[1] << " from node " << mpi_status.MPI_SOURCE << ", buffer real size " << recv_buff[2] << endl;
 			c_recv = { real(UL), imag(c_recv) - step*rows_per_task };
 
 			//cout << "Sending point " << c_send << " to node " << mpi_status.MPI_SOURCE << endl;
