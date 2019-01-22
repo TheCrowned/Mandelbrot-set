@@ -1,5 +1,5 @@
 /**
- * Mandelbrot project
+ * Mandelbrot project 
  * Stefano Ottolenghi
  */
  
@@ -67,39 +67,40 @@ void scrivi_riga_output(double* riga) {
 int main(int argc, char** argv) {
 
 	int nproc, rank;
-
-	//Params handling
-	if(argc < 7) {
-		cout << "Usage: mandelbrot <max_iterations> <step_size> <lower_left_real> <lower_left_imaginary> <upper_right_real> <upper_right_imaginary> [<rows_per_task>]";
-		return 0;
-	}
-
+	chrono::high_resolution_clock::time_point tstart, tend;
+	chrono::duration<double> diff;
+	
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &nproc);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	max_iterations = atoi(argv[1]);
-	step = atof(argv[2]);
-	LL = { atof(argv[3]), atof(argv[4]) };
-	UR = { atof(argv[5]), atof(argv[6]) };
+	//Params handling
+	if(argc < 7) {
+		if(rank == 0)
+			cout << "Usage: mandelbrot <lower_left_real> <lower_left_imaginary> <upper_right_real> <upper_right_imaginary> <max_iterations> <step_size> [<rows_per_task>]" << endl;
+			
+		MPI_Finalize();
+		return 0;
+	}
+
+	max_iterations = atoi(argv[5]);
+	step = atof(argv[6]);
+	LL = { atof(argv[1]), atof(argv[2]) };
+	UR = { atof(argv[3]), atof(argv[4]) };
 
 	LR = { real(UR), imag(LL) };
-	UL = { real(LL), imag(UR) };
+	UL = { real(LL), imag(UR) };	
 
 	if(argc == 8)
 		rows_per_task = atoi(argv[7]);
 
 	x_size = (abs(LL-LR)/step)+1, y_size = ((abs(LL-UL)/step)+1);
-	chrono::high_resolution_clock::time_point tstart, tend;
-	chrono::duration<double> diff;
-
-	//cout << x_size << y_size << endl;
 
 	//Master thread
 	if(rank == 0) {
 		tstart = chrono::high_resolution_clock::now();
 
-		cout << "Running Mandelbrot routine on " << x_size*y_size << " points with " << nproc-1 << " workers. Each task consists of " << rows_per_task << " rows, each of " << x_size << " columns." << endl << endl;
+		//cout << "Running Mandelbrot routine on " << x_size*y_size << " points with " << nproc-1 << " workers. Each task consists of " << rows_per_task << " rows, each of " << x_size << " columns." << endl << endl;
 	
 		MPI_Status mpi_status;
 		MPI_Request mpi_request;
@@ -117,14 +118,12 @@ int main(int argc, char** argv) {
 			//cout << "Sending point " << c_send << " to node " << i%nproc << endl;
 			MPI_Send(&c_send, 1, MPI_DOUBLE_COMPLEX, i%nproc, 0,  MPI_COMM_WORLD);
 			c_send = { real(UL), imag(c_send) - step*rows_per_task };
-
-			if(imag(c_send) < imag(LL)) break;
 		}
 
 		//Receive from workers and, for each result, send out a new task
 		while(imag(c_recv) >= imag(LL)) {
 			MPI_Recv(recv_buff, x_size*rows_per_task +2 +1, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &mpi_status); //cannot use non-blocking here, otherwise can't use mpi_status.MPI_SOURCE before scrivi_riga_output
-			cout << "Received point " << recv_buff[0] << "," << recv_buff[1] << " from node " << mpi_status.MPI_SOURCE << ", buffer real size " << recv_buff[2] << endl;
+			//cout << "Received point " << recv_buff[0] << "," << recv_buff[1] << " from node " << mpi_status.MPI_SOURCE << ", buffer real size " << recv_buff[2] << endl;
 			c_recv = { real(UL), imag(c_recv) - step*rows_per_task };
 
 			//cout << "Sending point " << c_send << " to node " << mpi_status.MPI_SOURCE << endl;
@@ -138,6 +137,8 @@ int main(int argc, char** argv) {
 
 		tend = chrono::high_resolution_clock::now();
 		diff = tend - tstart;
+
+		cout << max_iterations << " " << step << " " << rows_per_task << " " << diff.count() << endl;
 
 	//Worker threads
 	} else {
@@ -153,12 +154,8 @@ int main(int argc, char** argv) {
 			//cout << "* " << "[" << rank << "]" << " Received point " << c << ", processing..." << endl;
 
 			if(imag(c) <= imag(LL)-step) { //or it would skip point -1 -1
-				/*cout << imag(c)*10000 << imag(LL)*10000 << endl;
-				cout << (imag(c) == imag(LL)) << endl;
-				cout << (imag(c) < imag(LL)) << endl;
-				cout << (imag(c) <= imag(LL)) << endl;*/
-				cout << "* " << "[" << rank << "]" << " STOPPING thread " << rank << endl;
-				cout << "* Worker " << rank << " processed " << count << " tasks" << endl;
+				//cout << "* " << "[" << rank << "]" << " STOPPING thread " << rank << endl;
+				//cout << "* Worker " << rank << " processed " << count << " tasks" << endl;
 				break;
 			}
 
@@ -190,9 +187,9 @@ int main(int argc, char** argv) {
 			count++;
 		}
 	}
-
+	
 	MPI_Finalize();
 
-	if(rank == 0)
-		cout << "\n~~ Completed in " << diff.count() << " seconds ~~\n";
+	//if(rank == 0)
+		//cout << "\n~~ Completed in " << diff.count() << " seconds ~~\n";
 }

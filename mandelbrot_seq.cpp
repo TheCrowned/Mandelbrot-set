@@ -11,8 +11,7 @@
 
 using namespace std;
 
-#define TRIALS 30
-#define MAXTIME 5000000000 /* 5 seconds */
+#define TRIALS 2
 
 int max_iterations = 20;
 double step = 0.1;
@@ -52,20 +51,16 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	max_iterations = atoi(argv[1]);
-	step = atof(argv[2]);
-	LL = { atof(argv[3]), atof(argv[4]) };
-	UR = { atof(argv[5]), atof(argv[6]) };
-
+	max_iterations = atoi(argv[5]);
+	step = atof(argv[6]);
+	LL = { atof(argv[1]), atof(argv[2]) };
+	UR = { atof(argv[3]), atof(argv[4]) };
+	
 	LR = { real(UR), imag(LL) };
 	UL = { real(LL), imag(UR) };
 
-	//Memory init
-	//int rows = abs(UL-UR)/step + 1, cols = (int)abs(UL-LR)/step + 1;
-	//int* matrix = (int*) malloc(rows * cols * sizeof(int));
-
 	ttstart = chrono::high_resolution_clock::now();
-	for (int p = 0; p < TRIALS; p++) {
+	for(int p = 0; p < TRIALS; p++) {
 		tstart = chrono::high_resolution_clock::now();
 
 		//Output
@@ -92,9 +87,6 @@ int main(int argc, char** argv) {
 
 		/* take the best performance result */
 		if (diff.count() < min) min = diff.count();
-		/* ...at most TRIALS times no longer than MAXTIME */
-		diff = chrono::duration_cast<chrono::duration<double>>(tend - ttstart);
-		if (diff.count() > MAXTIME) break;
 
 		output.close();
 	}
