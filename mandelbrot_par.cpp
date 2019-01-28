@@ -1,8 +1,8 @@
 /**
- * Mandelbrot project 
+ * Mandelbrot project
  * Stefano Ottolenghi
  */
- 
+
 #include <complex>
 #include <iostream>
 #include <fstream>
@@ -10,15 +10,17 @@
 #include <ctime>
 #include <chrono>
 
+#define DEBUG 0
+
 using namespace std;
 
 int max_iterations = 20;
 double step = 0.1;
 
-complex<double> UR =  0.5 +1i;
-complex<double> UL = -1 +1i;
-complex<double> LL = -1 -1i;
-complex<double> LR =  0.5 -1i;
+complex<double> UR = { 0.5, +1 };
+complex<double> UL = { -1, +1 };
+complex<double> LL = { -1, -1 };
+complex<double> LR = { 0.5, -1 };
 
 int rows_per_task = 2,
 	x_size = 0, y_size = 0; //really init in main
@@ -30,11 +32,11 @@ ofstream output;
  *
  * @param	complex<double> c Input point
  * @return	int Iterations to divergence
- */ 
+ */
 int mandelbrot(complex<double> c) {
 	int n = 1;
 	complex<double> z = c;
-	
+
 	while(abs(z) < 2 && n < max_iterations) {
 		z = pow(z, 2) + c;
 		n++;
@@ -50,7 +52,7 @@ int mandelbrot(complex<double> c) {
  *
  * @param	double* riga Processed line
  * @return	void
- */ 
+ */
 void scrivi_riga_output(double* riga) {
 	int real_rows_per_task = riga[2] / x_size;
 	complex<double> z = { (double) riga[0], (double) riga[1] };
@@ -69,7 +71,7 @@ int main(int argc, char** argv) {
 	int nproc, rank;
 	chrono::high_resolution_clock::time_point tstart, tend;
 	chrono::duration<double> diff;
-	
+
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &nproc);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -78,7 +80,7 @@ int main(int argc, char** argv) {
 	if(argc < 7) {
 		if(rank == 0)
 			cout << "Usage: mandelbrot <lower_left_real> <lower_left_imaginary> <upper_right_real> <upper_right_imaginary> <max_iterations> <step_size> [<rows_per_task>]" << endl;
-			
+
 		MPI_Finalize();
 		return 0;
 	}
@@ -89,7 +91,7 @@ int main(int argc, char** argv) {
 	UR = { atof(argv[3]), atof(argv[4]) };
 
 	LR = { real(UR), imag(LL) };
-	UL = { real(LL), imag(UR) };	
+	UL = { real(LL), imag(UR) };
 
 	if(argc == 8)
 		rows_per_task = atoi(argv[7]);
@@ -100,12 +102,13 @@ int main(int argc, char** argv) {
 	if(rank == 0) {
 		tstart = chrono::high_resolution_clock::now();
 
-		//cout << "Running Mandelbrot routine on " << x_size*y_size << " points with " << nproc-1 << " workers. Each task consists of " << rows_per_task << " rows, each of " << x_size << " columns." << endl << endl;
-	
+		if(DEBUG)
+			cout << "Running Mandelbrot routine on " << x_size*y_size << " points with " << nproc-1 << " workers. Each task consists of " << rows_per_task << " rows, each of " << x_size << " columns." << endl << endl;
+
 		MPI_Status mpi_status;
 		MPI_Request mpi_request;
 		double* recv_buff = (double*) malloc((x_size*rows_per_task +2 +1) * sizeof(double));
-	
+
 		output.open("output.dat");
 
 		//Span plane region and call mandlebrot
@@ -114,8 +117,10 @@ int main(int argc, char** argv) {
 		for(int i = 0; i < nproc*2; i++) {
 
 			if(i % nproc == 0) continue; //exclude master
-			
-			//cout << "Sending point " << c_send << " to node " << i%nproc << endl;
+
+			if(DEBUG)
+				cout << "Sending point " << c_send << " to node " << i%nproc << endl;
+
 			MPI_Send(&c_send, 1, MPI_DOUBLE_COMPLEX, i%nproc, 0,  MPI_COMM_WORLD);
 			c_send = { real(UL), imag(c_send) - step*rows_per_task };
 		}
@@ -123,13 +128,18 @@ int main(int argc, char** argv) {
 		//Receive from workers and, for each result, send out a new task
 		while(imag(c_recv) >= imag(LL)) {
 			MPI_Recv(recv_buff, x_size*rows_per_task +2 +1, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &mpi_status); //cannot use non-blocking here, otherwise can't use mpi_status.MPI_SOURCE before scrivi_riga_output
-			//cout << "Received point " << recv_buff[0] << "," << recv_buff[1] << " from node " << mpi_status.MPI_SOURCE << ", buffer real size " << recv_buff[2] << endl;
+
+			if(DEBUG)
+				cout << "Received point " << recv_buff[0] << "," << recv_buff[1] << " from node " << mpi_status.MPI_SOURCE << ", buffer real size " << recv_buff[2] << endl;
+
 			c_recv = { real(UL), imag(c_recv) - step*rows_per_task };
 
-			//cout << "Sending point " << c_send << " to node " << mpi_status.MPI_SOURCE << endl;
+			if(DEBUG)
+				cout << "Sending point " << c_send << " to node " << mpi_status.MPI_SOURCE << endl;
+
 			MPI_Send(&c_send, 1, MPI_DOUBLE_COMPLEX, mpi_status.MPI_SOURCE, 0, MPI_COMM_WORLD);
 			c_send = { real(UL), imag(c_send) - step*rows_per_task };
-			
+
 			scrivi_riga_output(recv_buff);
 		}
 
@@ -145,17 +155,21 @@ int main(int argc, char** argv) {
 		MPI_Status mpi_status;
 		MPI_Request mpi_request;
 		complex<double> c;
-		
+
 		double* man_results = (double*) malloc((x_size*rows_per_task +2 +1) * sizeof(double)); //need to be double to store c coord
 
 		int count = 0;
 		for(;;) {
 			MPI_Recv(&c, 1, MPI_DOUBLE_COMPLEX, 0, 0, MPI_COMM_WORLD, &mpi_status);
-			//cout << "* " << "[" << rank << "]" << " Received point " << c << ", processing..." << endl;
 
-			if(imag(c) <= imag(LL)-step) { //or it would skip point -1 -1
-				//cout << "* " << "[" << rank << "]" << " STOPPING thread " << rank << endl;
-				//cout << "* Worker " << rank << " processed " << count << " tasks" << endl;
+			if(DEBUG)
+				cout << "* " << "[" << rank << "]" << " Received point " << c << ", processing..." << endl;
+
+			if(imag(c) <= imag(LL)-step) { //or it would skip point -1 -1 on some step sizes
+				if(DEBUG) {
+					cout << "* " << "[" << rank << "]" << " STOPPING thread " << rank << endl;
+					cout << "* Worker " << rank << " processed " << count << " tasks" << endl;
+				}
 				break;
 			}
 
@@ -171,23 +185,33 @@ int main(int argc, char** argv) {
 			while(imag(c) > imag(LL)-step && i*x_size < rows_per_task*x_size) {
 				for(j = 0; j < x_size; j++) {
 					man_results[3 +i*x_size +j] = mandelbrot(c);
-					//cout << "*  " << c << "," << man_results[3 +i*x_size +j] << "; ";
-					
+
+					if(DEBUG)
+						cout << "*  " << c << "," << man_results[3 +i*x_size +j] << "; ";
+
 					c = { real(c) + step, imag(c) };
 				}
 				i++;
 				c = { real(LL), imag(c) - step }; //reset x coord, step one y coord
+
+				if(DEBUG)
+					cout << endl;
 			}
+
+			if(DEBUG)
+				cout << endl;
 
 			man_results[2] = (i-1)*x_size +j; //Store buffer real size in buffer (final tasks can be smaller than others)
 
-			//cout << "* " << "[" << rank << "]" << " Sending back results from point " << man_results[0] << "," << man_results[1] << ", size " << man_results[2] << endl;
+			if(DEBUG)
+				cout << "* " << "[" << rank << "]" << " Sending back results from point " << man_results[0] << "," << man_results[1] << ", size " << man_results[2] << endl;
+
 			MPI_Isend(man_results, x_size*rows_per_task +2 +1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &mpi_request);
 
 			count++;
 		}
 	}
-	
+
 	MPI_Finalize();
 
 	//if(rank == 0)

@@ -2,7 +2,7 @@
  * Mandelbrot project
  * Stefano Ottolenghi
  */
- 
+
 #include <complex>
 #include <iostream>
 #include <fstream>
@@ -12,25 +12,26 @@
 using namespace std;
 
 #define TRIALS 2
+#define DEBUG 0
 
 int max_iterations = 20;
 double step = 0.1;
 
-complex<double> UR =  0.5 +1i;
-complex<double> UL = -1 +1i;
-complex<double> LL = -1 -1i;
-complex<double> LR =  0.5 -1i;
+complex<double> UR = { 0.5, +1 };
+complex<double> UL = { -1, +1 };
+complex<double> LL = { -1, -1 };
+complex<double> LR = { 0.5, -1 };
 
 /*
  * Test convergence for max_iterations of a single complex input point.
  *
  * @param	complex<double> c Input point
  * @return	int Iterations to divergence
- */ 
+ */
 int mandelbrot(complex<double> c) {
 	int n = 1;
 	complex<double> z = c;
-	
+
 	while(abs(z) < 2 && n < max_iterations) {
 		z = pow(z, 2) + c;
 		n++;
@@ -47,7 +48,7 @@ int main(int argc, char** argv) {
 
 	//Params handling
 	if(argc < 7) {
-		cout << "Usage: mandelbrot <max_iterations> <step_size> <lower_left_real> <lower_left_imaginary> <upper_right_real> <upper_right_imaginary>";
+		cout << "Usage: mandelbrot <lower_left_real> <lower_left_imaginary> <upper_right_real> <upper_right_imaginary> <max_iterations> <step_size>" << endl;
 		return 0;
 	}
 
@@ -55,7 +56,7 @@ int main(int argc, char** argv) {
 	step = atof(argv[6]);
 	LL = { atof(argv[1]), atof(argv[2]) };
 	UR = { atof(argv[3]), atof(argv[4]) };
-	
+
 	LR = { real(UR), imag(LL) };
 	UL = { real(LL), imag(UR) };
 
@@ -73,7 +74,10 @@ int main(int argc, char** argv) {
 
 			while(real(c) <= real(UR)) {
 				int man_n = mandelbrot(c);
-				//cout << c << " " << man_n << endl;
+
+				if(DEBUG)
+					cout << c << " " << man_n << endl;
+
 				output << real(c) << " " << imag(c) << " " << man_n << "\n";
 				c = { real(c) + step, imag(c) };
 			}
